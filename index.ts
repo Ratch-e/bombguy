@@ -243,10 +243,7 @@ class BombReallyClose extends BaseTile implements BombState {
   isExplodable(): boolean {
     return false;
   }
-  onDestroy(): void {}
-
   update(map: GameMap, x: number, y: number): void {
-    map.setTile(x, y, this.nextState());
     map.explode(x, y);
   }
   nextState(): Fire {
@@ -254,25 +251,7 @@ class BombReallyClose extends BaseTile implements BombState {
   }
 }
 
-interface FireState extends Tile {}
-
-class TmpFire extends BaseTile implements FireState {
-  getColor(): string {
-    return "#ffcc00";
-  }
-  isWalkable(): boolean {
-    return true;
-  }
-  onPlayerContact(game: Game, x: number, y: number): void {
-    game.setGameOver();
-  }
-  onDestroy(map: GameMap, x: number, y: number): void {}
-  update(map: GameMap, x: number, y: number): void {
-    map.setTile(x, y, new Fire());
-  }
-}
-
-class Fire extends BaseTile implements FireState {
+class Fire extends BaseTile implements Tile {
   getColor(): string {
     return "#ffcc00";
   }
@@ -458,9 +437,10 @@ class GameMap {
   }
 
   updateTiles(): void {
+    const currentState = this.tiles.map((row) => row.slice());
     for (let y = 0; y < this.tiles.length; y++) {
       for (let x = 0; x < this.tiles[y].length; x++) {
-        this.tiles[y][x].update(this, x, y);
+        currentState[y][x].update(this, x, y);
       }
     }
   }
@@ -510,23 +490,22 @@ class GameMap {
 }
 
 class TileFactory {
-  private tileMapping: { [key: number]: () => Tile } = {
-    0: () => new Air(),
-    1: () => new Unbreakable(),
-    2: () => new Stone(),
-    3: () => new Bomb(),
-    4: () => new BombClose(),
-    5: () => new BombReallyClose(),
-    6: () => new TmpFire(),
-    7: () => new Fire(),
-    8: () => new ExtraBombPowerup(),
-    9: () => new MonsterUp(),
-    10: () => new MonsterRight(),
-    11: () => new TmpMonsterRight(),
-    12: () => new MonsterDown(),
-    13: () => new TmpMonsterDown(),
-    14: () => new MonsterLeft(),
-  };
+  private tileMapping: Array<() => Tile> = [
+    () => new Air(),
+    () => new Unbreakable(),
+    () => new Stone(),
+    () => new Bomb(),
+    () => new BombClose(),
+    () => new BombReallyClose(),
+    () => new Fire(),
+    () => new ExtraBombPowerup(),
+    () => new MonsterUp(),
+    () => new MonsterRight(),
+    () => new TmpMonsterRight(),
+    () => new MonsterDown(),
+    () => new TmpMonsterDown(),
+    () => new MonsterLeft(),
+  ];
 
   createTile(tileType: number): Tile {
     const creator = this.tileMapping[tileType];
@@ -650,7 +629,7 @@ const initialMapData: number[][] = [
   [1, 2, 1, 2, 1, 2, 1, 2, 1],
   [1, 2, 2, 2, 2, 0, 0, 0, 1],
   [1, 2, 1, 2, 1, 0, 1, 0, 1],
-  [1, 2, 2, 2, 2, 0, 0, 10, 1],
+  [1, 2, 2, 2, 2, 0, 0, 11, 1],
   [1, 1, 1, 1, 1, 1, 1, 1, 1],
 ];
 
