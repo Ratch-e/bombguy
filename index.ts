@@ -2,7 +2,6 @@ const TILE_SIZE = 30;
 const FPS = 30;
 const SLEEP = 1000 / FPS;
 const TPS = 2;
-const DELAY = FPS / TPS;
 
 interface Input {
   handle(game: Game): void;
@@ -46,20 +45,23 @@ class InputHandler {
   }
 
   private setupEventListeners(): void {
-    const LEFT_KEY = "ArrowLeft";
-    const UP_KEY = "ArrowUp";
-    const RIGHT_KEY = "ArrowRight";
-    const DOWN_KEY = "ArrowDown";
-    const PLACE_KEY = " ";
+    const keyMap: Record<string, () => Input> = {
+      ArrowLeft: () => new LeftInput(),
+      a: () => new LeftInput(),
+      ArrowUp: () => new UpInput(),
+      w: () => new UpInput(),
+      ArrowRight: () => new RightInput(),
+      d: () => new RightInput(),
+      ArrowDown: () => new DownInput(),
+      s: () => new DownInput(),
+      " ": () => new PlaceBombInput(),
+    };
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === LEFT_KEY || e.key === "a") this.addInput(new LeftInput());
-      else if (e.key === UP_KEY || e.key === "w") this.addInput(new UpInput());
-      else if (e.key === RIGHT_KEY || e.key === "d")
-        this.addInput(new RightInput());
-      else if (e.key === DOWN_KEY || e.key === "s")
-        this.addInput(new DownInput());
-      else if (e.key === PLACE_KEY) this.addInput(new PlaceBombInput());
+      const inputFactory = keyMap[e.key];
+      if (inputFactory) {
+        this.addInput(inputFactory());
+      }
     });
   }
 
@@ -77,18 +79,20 @@ class InputHandler {
 }
 
 class GameState {
-  private delay = 0;
+  private delay: number;
+  private readonly initialDelay: number;
   private gameOver = false;
   private tickReady = false;
 
-  constructor() {
-    this.delay = DELAY;
+  constructor(initialDelay: number) {
+    this.initialDelay = initialDelay;
+    this.delay = initialDelay;
   }
 
   update(): void {
     this.tickReady = false;
     if (--this.delay <= 0) {
-      this.delay = DELAY;
+      this.delay = this.initialDelay;
       this.tickReady = true;
     }
   }
@@ -131,14 +135,11 @@ abstract class BaseTile implements Tile {
   ): void {
     g.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
   }
-  abstract getColor(): string | null;
   update(map: GameMap, x: number, y: number): void {}
   isAir(): boolean {
     return false;
   }
-  onDestroy(map: GameMap, x: number, y: number): void {
-    map.setTile(x, y, new Fire());
-  }
+  onDestroy(map: GameMap, x: number, y: number): void {}
   onPlayerContact(game: Game, x: number, y: number): void {}
   isWalkable(): boolean {
     return false;
@@ -146,6 +147,7 @@ abstract class BaseTile implements Tile {
   isExplodable(): boolean {
     return true;
   }
+  abstract getColor(): string | null;
 }
 
 class Air extends BaseTile implements Tile {
@@ -261,7 +263,6 @@ class Fire extends BaseTile implements Tile {
   onPlayerContact(game: Game, x: number, y: number): void {
     game.setGameOver();
   }
-  onDestroy(map: GameMap, x: number, y: number): void {}
   update(map: GameMap, x: number, y: number): void {
     map.setTile(x, y, new Air());
   }
@@ -287,9 +288,6 @@ abstract class BaseMonster extends BaseTile implements MonsterState {
     this.move(map, x, y);
   }
 
-  abstract nextDirection(): MonsterState;
-  abstract move(map: GameMap, x: number, y: number): void;
-
   protected tryMove(
     map: GameMap,
     x: number,
@@ -305,6 +303,8 @@ abstract class BaseMonster extends BaseTile implements MonsterState {
     map.setTile(x + dx, y + dy, nextStateIfMoved);
     return true;
   }
+  abstract nextDirection(): MonsterState;
+  abstract move(map: GameMap, x: number, y: number): void;
 }
 
 class TmpMonsterDown extends BaseMonster implements MonsterState {
@@ -550,7 +550,7 @@ class Game {
   ) {
     this.map = new GameMap(rawMapData);
     this.player = new Player(startX, startY, initialBombs, this.map);
-    this.gameState = new GameState();
+    this.gameState = new GameState(FPS / TPS);
     this.inputHandler = new InputHandler();
     this.graphics = new Graphics();
   }
@@ -602,22 +602,31 @@ class Game {
     this.graphics.clear();
     const g = this.graphics.getContext();
     this.map.drawTiles(g);
+    this.drawHud(g);
+
     if (!this.gameState.isGameOver()) {
       this.player.draw(g);
     } else {
-      g.fillStyle = "red";
-      g.font = "48px sans-serif";
-      g.textAlign = "center";
-      g.fillText(
-        "GAME OVER",
-        this.graphics.getContext().canvas.width / 2,
-        this.graphics.getContext().canvas.height / 2
-      );
+      this.drawGameOver(g);
     }
+  }
+
+  private drawHud(g: CanvasRenderingContext2D): void {
     g.fillStyle = "white";
     g.font = "18px sans-serif";
     g.textAlign = "left";
     g.fillText(`Bombs: ${this.player.getBombCount()}`, 10, 25);
+  }
+
+  private drawGameOver(g: CanvasRenderingContext2D): void {
+    g.fillStyle = "red";
+    g.font = "48px sans-serif";
+    g.textAlign = "center";
+    g.fillText(
+      "GAME OVER",
+      this.graphics.getContext().canvas.width / 2,
+      this.graphics.getContext().canvas.height / 2
+    );
   }
 }
 
